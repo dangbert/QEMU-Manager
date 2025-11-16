@@ -16,6 +16,7 @@
  ******************************************************************************/
 
 import Foundation
+import Cocoa
 
 extension QEMU.System
 {
@@ -93,7 +94,29 @@ extension QEMU.System
         
         arguments.append( contentsOf: vm.config.arguments )
         
-        let _ = try QEMU.System( architecture: vm.config.architecture ).execute( arguments: arguments )
+        // Log the command being launched
+        let qemuSystem = QEMU.System( architecture: vm.config.architecture )
+        guard let path = qemuSystem.url?.path else
+        {
+            throw Error( title: "\( qemuSystem.name ) not available", message: "The QEMU tool \( qemuSystem.name ) was not found." )
+        }
+        
+        let commandString = ([ path ] + arguments).map { $0.contains( " " ) ? "\"\( $0 )\"" : $0 }.joined( separator: " " )
+
+        if !arguments.contains( "help" ) {
+            // Show alert on main thread and wait for user to dismiss it before launching
+            DispatchQueue.main.sync
+            {
+                let alert = NSAlert()
+                alert.messageText = "Launching QEMU"
+                alert.informativeText = "Command:\n\( commandString )"
+                alert.alertStyle = .informational
+                alert.addButton( withTitle: "OK" )
+                alert.runModal()
+            }
+        }
+        
+        let _ = try qemuSystem.execute( arguments: arguments )
     }
     
     public static func machines( for architecture: Config.Architecture ) -> [ ( String, String ) ]

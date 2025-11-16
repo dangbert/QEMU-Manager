@@ -16,6 +16,7 @@
  ******************************************************************************/
 
 import Foundation
+import AppKit
 
 public class QEMU
 {
@@ -61,14 +62,92 @@ public class QEMU
             process.standardOutput = out
             process.standardError  = err
             
+            // Log the command being launched
+            let commandString = ([ path ] + arguments).map { $0.contains( " " ) ? "\"\( $0 )\"" : $0 }.joined( separator: " " )
+
+            if !arguments.contains( "help" ) {
+                DispatchQueue.main.async
+                {
+                    let alert = NSAlert()
+                    alert.messageText = "Launching QEMU"
+                    alert.informativeText = "Command:\n\( commandString )"
+                    alert.alertStyle = .informational
+                    alert.addButton( withTitle: "OK" )
+                    alert.runModal()
+                }
+            }
+            
+            
+            // Set up real-time logging for stdout and stderr (only for VM launches, not help commands)
+            let isVMLaunch = !arguments.contains( "help" )
+            var outData = Data()
+            var errData = Data()
+            
+            if isVMLaunch
+            {
+                let outHandle = out.fileHandleForReading
+                let errHandle = err.fileHandleForReading
+                
+                // Set up readability handlers for real-time logging
+                outHandle.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if !data.isEmpty
+                    {
+                        outData.append( data )
+                        if let string = String( data: data, encoding: .utf8 )
+                        {
+                            // Log each line separately for better readability
+                            let lines = string.components( separatedBy: .newlines )
+                            for line in lines
+                            {
+                                let trimmed = line.trimmingCharacters( in: .whitespacesAndNewlines )
+                                if !trimmed.isEmpty
+                                {
+                                    NSLog( "[QEMU stdout] %@", trimmed )
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                errHandle.readabilityHandler = { handle in
+                    let data = handle.availableData
+                    if !data.isEmpty
+                    {
+                        errData.append( data )
+                        if let string = String( data: data, encoding: .utf8 )
+                        {
+                            // Log each line separately for better readability
+                            let lines = string.components( separatedBy: .newlines )
+                            for line in lines
+                            {
+                                let trimmed = line.trimmingCharacters( in: .whitespacesAndNewlines )
+                                if !trimmed.isEmpty
+                                {
+                                    NSLog( "[QEMU stderr] %@", trimmed )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
             try ObjC.catchException
             {
                 process.launch()
                 process.waitUntilExit()
             }
             
-            let dataOut = try? out.fileHandleForReading.readToEnd()
-            let dataErr = try? err.fileHandleForReading.readToEnd()
+            // Clean up readability handlers
+            if isVMLaunch
+            {
+                out.fileHandleForReading.readabilityHandler = nil
+                err.fileHandleForReading.readabilityHandler = nil
+            }
+            
+            // Read any remaining data
+            let dataOut = isVMLaunch ? outData : ( try? out.fileHandleForReading.readToEnd() )
+            let dataErr = isVMLaunch ? errData : ( try? err.fileHandleForReading.readToEnd() )
             let strOut  = String( data: dataOut ?? Data(), encoding: .utf8 ) ?? ""
             let strErr  = String( data: dataErr ?? Data(), encoding: .utf8 ) ?? ""
             
