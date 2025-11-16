@@ -37,6 +37,21 @@ QEMU Configuration:
 
 ![QEMU](Assets/Screenshots/QEMU.png "QEMU")
 
+### Installation
+
+* [ensure you have the latest Xcode installed](https://apps.apple.com/us/app/xcode/id497799835)
+
+* clone this project (including submodules)
+
+````bash
+git clone git@github.com:macmade/QEMU-Manager.git
+cd QEMU-Manager && git submodule update --init
+````
+
+* open the project folder in Xcode, and in the settings go to "Signing & Capabilities" > "Signing (Debug)" and set "Signing Certificate" to "Sign to Run Locally"
+
+* Click the play button in Xcode to build and launch QEMU-Manager
+
 License
 -------
 
